@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: contas-casa
+    name: contas-casa-web
     runtime: node
     plan: free
     buildCommand: npm install
