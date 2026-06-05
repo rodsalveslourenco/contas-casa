@@ -31,26 +31,64 @@ const elements = {
   ownerChart: $('#ownerChart'),
 };
 
-let state = loadState();
-let activeMonth = state.activeMonth || currentMonthKey();
+let state = defaultState();
+let activeMonth = state.activeMonth;
 let activePaymentBillId = null;
+let serverReady = false;
+let saveTimer = null;
 
 function currentMonthKey() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function loadState() {
+function defaultState() {
+  return { activeMonth: currentMonthKey(), months: {} };
+}
+
+function localBackupState() {
   try {
-    return JSON.parse(localStorage.getItem(storageKey)) || { activeMonth: currentMonthKey(), months: {} };
+    return JSON.parse(localStorage.getItem(storageKey)) || defaultState();
   } catch {
-    return { activeMonth: currentMonthKey(), months: {} };
+    return defaultState();
   }
+}
+
+async function loadServerState() {
+  try {
+    const response = await fetch('/api/state');
+    if (!response.ok) throw new Error('API indisponível.');
+    const payload = await response.json();
+    state = payload.state?.months ? payload.state : defaultState();
+    activeMonth = state.activeMonth || currentMonthKey();
+    serverReady = true;
+  } catch {
+    state = localBackupState();
+    activeMonth = state.activeMonth || currentMonthKey();
+    serverReady = false;
+  }
+  getMonth();
+  render();
 }
 
 function saveState() {
   state.activeMonth = activeMonth;
   localStorage.setItem(storageKey, JSON.stringify(state));
+
+  if (!serverReady) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const response = await fetch('/api/state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state }),
+      });
+      if (!response.ok) throw new Error('Falha ao salvar no banco.');
+    } catch {
+      serverReady = false;
+    }
+  }, 350);
 }
 
 function getMonth(monthKey = activeMonth) {
@@ -69,23 +107,8 @@ function monthLabel(monthKey) {
   return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
 }
 
-function formatDate(value) {
-  if (!value) return '';
-  const [year, month, day] = value.split('-');
-  return `${day}/${month}/${year}`;
-}
-
 function uid(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
 }
 
 function totals(month) {
@@ -146,51 +169,71 @@ function renderMonths() {
 
 function renderBills(month) {
   elements.billTable.innerHTML = '';
+
   if (!month.bills.length) {
     elements.billTable.innerHTML = '<tr><td colspan="8">Nenhuma conta cadastrada neste mês.</td></tr>';
     return;
   }
 
-  month.bills.slice().sort((a, b) => a.dueDate.localeCompare(b.dueDate)).forEach((bill) => {
-    const missing = Math.max(Number(bill.amount) - Number(bill.paid || 0), 0);
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td data-label="Conta">${escapeHtml(bill.name)}</td>
-      <td data-label="Vencimento">${formatDate(bill.dueDate)}</td>
-      <td data-label="Modalidade">${escapeHtml(bill.category)}</td>
-      <td data-label="Pessoa">${escapeHtml(bill.owner)}</td>
-      <td data-label="Valor">${money(bill.amount)}</td>
-      <td data-label="Abatido" class="${bill.paid >= bill.amount ? 'status-paid' : ''}">${money(bill.paid || 0)}</td>
-      <td data-label="Falta" class="${missing > 0 ? 'status-open' : 'status-paid'}">${money(missing)}</td>
-      <td data-label="Ação">
-        <button class="mini-button" data-action="pay" data-id="${bill.id}" type="button">Abater</button>
-        <button class="mini-button danger" data-action="remove-bill" data-id="${bill.id}" type="button">Excluir</button>
-      </td>`;
-    elements.billTable.append(row);
-  });
+  month.bills
+    .slice()
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+    .forEach((bill) => {
+      const missing = Math.max(Number(bill.amount) - Number(bill.paid || 0), 0);
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td data-label="Conta">${escapeHtml(bill.name)}</td>
+        <td data-label="Vencimento">${formatDate(bill.dueDate)}</td>
+        <td data-label="Modalidade">${escapeHtml(bill.category)}</td>
+        <td data-label="Pessoa">${escapeHtml(bill.owner)}</td>
+        <td data-label="Valor">${money(bill.amount)}</td>
+        <td data-label="Abatido" class="${bill.paid >= bill.amount ? 'status-paid' : ''}">${money(bill.paid || 0)}</td>
+        <td data-label="Falta" class="${missing > 0 ? 'status-open' : 'status-paid'}">${money(missing)}</td>
+        <td data-label="Ação">
+          <button class="mini-button" data-action="pay" data-id="${bill.id}" type="button">Abater</button>
+          <button class="mini-button danger" data-action="remove-bill" data-id="${bill.id}" type="button">Excluir</button>
+        </td>
+      `;
+      elements.billTable.append(row);
+    });
 }
 
 function renderExpenses(month) {
   elements.expenseList.innerHTML = '';
+
   if (!month.expenses.length) {
     elements.expenseList.innerHTML = '<p>Nenhum gasto diário cadastrado neste mês.</p>';
     return;
   }
 
-  month.expenses.slice().sort((a, b) => b.date.localeCompare(a.date)).forEach((expense) => {
-    const item = document.createElement('div');
-    item.className = 'expense-item';
-    item.innerHTML = `
-      <div>
-        <strong>${escapeHtml(expense.description)}</strong>
-        <p>${formatDate(expense.date)} • ${escapeHtml(expense.category)}</p>
-      </div>
-      <div>
-        <strong>${money(expense.amount)}</strong>
-        <button class="mini-button danger" data-action="remove-expense" data-id="${expense.id}" type="button">Excluir</button>
-      </div>`;
-    elements.expenseList.append(item);
-  });
+  month.expenses
+    .slice()
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .forEach((expense) => {
+      const item = document.createElement('div');
+      item.className = 'expense-item';
+      item.innerHTML = `
+        <div>
+          <strong>${escapeHtml(expense.description)}</strong>
+          <p>${formatDate(expense.date)} • ${escapeHtml(expense.category)}</p>
+        </div>
+        <div>
+          <strong>${money(expense.amount)}</strong>
+          <button class="mini-button danger" data-action="remove-expense" data-id="${expense.id}" type="button">Excluir</button>
+        </div>
+      `;
+      elements.expenseList.append(item);
+    });
+}
+
+function renderCharts() {
+  const monthRows = Object.entries(state.months)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, month]) => ({ label: key.slice(5), value: totals(month).difference }));
+
+  drawBarChart(elements.monthlyChart, monthRows, '#147447', '#b42318');
+  drawBarChart(elements.categoryChart, groupByCategory(getMonth()), '#2d6fa8', '#2d6fa8');
+  drawBarChart(elements.ownerChart, groupByOwner(getMonth()), '#33a06f', '#33a06f');
 }
 
 function groupByCategory(month) {
@@ -204,22 +247,6 @@ function groupByOwner(month) {
   const grouped = new Map();
   month.bills.forEach((bill) => grouped.set(bill.owner, (grouped.get(bill.owner) || 0) + Number(bill.amount)));
   return Array.from(grouped, ([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
-}
-
-function renderCharts() {
-  const monthlyRows = Object.entries(state.months).sort(([a], [b]) => a.localeCompare(b)).map(([key, month]) => ({
-    label: key.slice(5),
-    value: totals(month).difference,
-  }));
-  drawBarChart(elements.monthlyChart, monthlyRows, '#147447', '#b42318');
-  drawBarChart(elements.categoryChart, groupByCategory(getMonth()), '#2d6fa8', '#2d6fa8');
-  drawBarChart(elements.ownerChart, groupByOwner(getMonth()), '#33a06f', '#33a06f');
-}
-
-function compactMoney(value) {
-  const number = Number(value) || 0;
-  if (Math.abs(number) >= 1000) return `R$ ${(number / 1000).toFixed(1)} mil`;
-  return money(number).replace(/\s/g, '');
 }
 
 function drawBarChart(canvas, rows, positiveColor, negativeColor) {
@@ -265,6 +292,27 @@ function drawBarChart(canvas, rows, positiveColor, negativeColor) {
     ctx.fillText(compactMoney(row.value), x + barWidth / 2, y - 5);
   });
   ctx.textAlign = 'left';
+}
+
+function compactMoney(value) {
+  const number = Number(value) || 0;
+  if (Math.abs(number) >= 1000) return `R$ ${(number / 1000).toFixed(1)} mil`;
+  return money(number).replace(/\s/g, '');
+}
+
+function formatDate(value) {
+  if (!value) return '';
+  const [year, month, day] = value.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }
 
 function download(filename, content, type) {
@@ -332,23 +380,31 @@ elements.expenseForm.addEventListener('submit', (event) => {
 document.addEventListener('click', (event) => {
   const button = event.target.closest('button[data-action]');
   if (!button) return;
+
   const { action, id } = button.dataset;
   const month = getMonth();
 
-  if (action === 'remove-bill') month.bills = month.bills.filter((bill) => bill.id !== id);
-  if (action === 'remove-expense') month.expenses = month.expenses.filter((expense) => expense.id !== id);
-  if (action !== 'pay') {
+  if (action === 'remove-bill') {
+    month.bills = month.bills.filter((bill) => bill.id !== id);
     render();
     return;
   }
 
-  const bill = month.bills.find((item) => item.id === id);
-  if (!bill) return;
-  activePaymentBillId = id;
-  const missing = Math.max(Number(bill.amount) - Number(bill.paid || 0), 0);
-  elements.paymentInfo.textContent = `${bill.name}: falta ${money(missing)} de ${money(bill.amount)}.`;
-  elements.paymentAmount.value = missing || '';
-  elements.paymentDialog.showModal();
+  if (action === 'remove-expense') {
+    month.expenses = month.expenses.filter((expense) => expense.id !== id);
+    render();
+    return;
+  }
+
+  if (action === 'pay') {
+    const bill = month.bills.find((item) => item.id === id);
+    if (!bill) return;
+    activePaymentBillId = id;
+    const missing = Math.max(Number(bill.amount) - Number(bill.paid || 0), 0);
+    elements.paymentInfo.textContent = `${bill.name}: falta ${money(missing)} de ${money(bill.amount)}.`;
+    elements.paymentAmount.value = missing || '';
+    elements.paymentDialog.showModal();
+  }
 });
 
 elements.paymentForm.addEventListener('submit', (event) => {
@@ -390,5 +446,7 @@ elements.clearMonthBtn.addEventListener('click', () => {
 });
 
 window.addEventListener('resize', renderCharts);
+
 getMonth();
 render();
+void loadServerState();
