@@ -113,6 +113,16 @@ button:hover,
   font-weight: 700;
 }
 
+.required-field {
+  color: #b42318 !important;
+}
+
+.required-field input,
+.required-field select {
+  border-color: #e28a83 !important;
+  background: #fffafa;
+}
+
 .month-picker input,
 .form-grid input,
 .form-grid select,
@@ -319,18 +329,41 @@ td input {
 }
 
 .status-open {
-  color: #b42318;
+  color: #a66a00;
   font-weight: 800;
 }
 
-.expense-list {
+.status-badge {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  min-height: 24px;
+  padding: 4px 9px;
+}
+
+.status-badge.pending {
+  background: #fff2cc;
+  border: 1px solid #f0cf72;
+  color: #946200;
+}
+
+.status-badge.paid {
+  background: #e9f8ef;
+  border: 1px solid #b9e7c8;
+  color: #147447;
+}
+
+.expense-list,
+.income-list {
   display: grid;
   gap: 8px;
   max-height: 360px;
   overflow: auto;
 }
 
-.expense-item {
+.expense-item,
+.income-item {
   align-items: center;
   border: 1px solid #d9e1e9;
   border-radius: 6px;
@@ -340,7 +373,8 @@ td input {
   padding: 10px;
 }
 
-.expense-item p {
+.expense-item p,
+.income-item p {
   color: #6b7b8c;
   font-size: 0.78rem;
   margin-top: 2px;
@@ -591,16 +625,19 @@ dialog::backdrop {
     margin-bottom: 2px;
   }
 
-  .expense-list {
+  .expense-list,
+  .income-list {
     max-height: none;
   }
 
-  .expense-item {
+  .expense-item,
+  .income-item {
     align-items: stretch;
     display: grid;
   }
 
-  .expense-item > div:last-child {
+  .expense-item > div:last-child,
+  .income-item > div:last-child {
     align-items: center;
     display: grid;
     gap: 8px;
@@ -621,7 +658,8 @@ dialog::backdrop {
     grid-template-columns: 1fr;
   }
 
-  .expense-item > div:last-child {
+  .expense-item > div:last-child,
+  .income-item > div:last-child {
     grid-template-columns: 1fr;
   }
 }

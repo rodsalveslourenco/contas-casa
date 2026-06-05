@@ -7,6 +7,7 @@ const elements = {
   monthTitle: $('#monthTitle'),
   incomeForm: $('#incomeForm'),
   incomeValue: $('#incomeValue'),
+  incomeList: $('#incomeList'),
   billForm: $('#billForm'),
   expenseForm: $('#expenseForm'),
   billTable: $('#billTable'),
@@ -93,9 +94,44 @@ function saveState() {
 
 function getMonth(monthKey = activeMonth) {
   if (!state.months[monthKey]) {
-    state.months[monthKey] = { income: 0, bills: [], expenses: [] };
+    state.months[monthKey] = { income: 0, incomes: [], bills: [], expenses: [] };
   }
+  normalizeMonth(state.months[monthKey]);
   return state.months[monthKey];
+}
+
+function normalizeMonth(month) {
+  if (!Array.isArray(month.incomes)) {
+    month.incomes = [];
+  }
+  if (Number(month.income || 0) > 0 && !month.incomes.some((income) => income.legacy)) {
+    month.incomes.push({
+      id: uid('income'),
+      amount: Number(month.income),
+      description: 'Receita lançada',
+      legacy: true,
+    });
+  }
+  if (!Array.isArray(month.bills)) month.bills = [];
+  if (!Array.isArray(month.expenses)) month.expenses = [];
+  month.income = incomeTotal(month);
+}
+
+function incomeTotal(month) {
+  return (month.incomes || []).reduce((sum, income) => sum + Number(income.amount || 0), 0);
+}
+
+function dateFromMonthDay(monthKey, dayValue) {
+  const [year, month] = monthKey.split('-').map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+  const day = Math.min(Math.max(Number(dayValue) || 1, 1), lastDay);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function addMonths(monthKey, amount) {
+  const [year, month] = monthKey.split('-').map(Number);
+  const date = new Date(year, month - 1 + amount, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
 function money(value) {
@@ -112,15 +148,17 @@ function uid(prefix) {
 }
 
 function totals(month) {
+  const receivedTotal = incomeTotal(month);
   const billTotal = month.bills.reduce((sum, bill) => sum + Number(bill.amount), 0);
   const paidTotal = month.bills.reduce((sum, bill) => sum + Number(bill.paid || 0), 0);
   const dailyTotal = month.expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
   return {
+    receivedTotal,
     billTotal,
     paidTotal,
     dailyTotal,
-    difference: Number(month.income || 0) - billTotal - dailyTotal,
-    leftover: Number(month.income || 0) - paidTotal - dailyTotal,
+    difference: receivedTotal - billTotal - dailyTotal,
+    leftover: receivedTotal - paidTotal - dailyTotal,
   };
 }
 
@@ -130,13 +168,14 @@ function setValueClass(element, value) {
 }
 
 function render() {
+  Object.values(state.months).forEach(normalizeMonth);
   const month = getMonth();
   const total = totals(month);
 
   elements.monthInput.value = activeMonth;
   elements.monthTitle.textContent = monthLabel(activeMonth);
-  elements.incomeValue.value = month.income || '';
-  elements.incomeMetric.textContent = money(month.income);
+  elements.incomeValue.value = '';
+  elements.incomeMetric.textContent = money(total.receivedTotal);
   elements.billTotalMetric.textContent = money(total.billTotal);
   elements.paidMetric.textContent = money(total.paidTotal);
   elements.leftoverMetric.textContent = money(total.leftover);
@@ -146,6 +185,7 @@ function render() {
   setValueClass(elements.differenceMetric, total.difference);
 
   renderMonths();
+  renderIncomes(month);
   renderBills(month);
   renderExpenses(month);
   renderCharts();
@@ -167,11 +207,35 @@ function renderMonths() {
   });
 }
 
+function renderIncomes(month) {
+  elements.incomeList.innerHTML = '';
+
+  if (!month.incomes.length) {
+    elements.incomeList.innerHTML = '<p>Nenhuma receita lançada neste mês.</p>';
+    return;
+  }
+
+  month.incomes.forEach((income, index) => {
+    const item = document.createElement('div');
+    item.className = 'income-item';
+    item.innerHTML = `
+      <div>
+        <strong>${money(income.amount)}</strong>
+        <p>Receita ${index + 1}</p>
+      </div>
+      <div>
+        <button class="mini-button danger" data-action="remove-income" data-id="${income.id}" type="button">Excluir</button>
+      </div>
+    `;
+    elements.incomeList.append(item);
+  });
+}
+
 function renderBills(month) {
   elements.billTable.innerHTML = '';
 
   if (!month.bills.length) {
-    elements.billTable.innerHTML = '<tr><td colspan="8">Nenhuma conta cadastrada neste mês.</td></tr>';
+    elements.billTable.innerHTML = '<tr><td colspan="9">Nenhuma conta cadastrada neste mês.</td></tr>';
     return;
   }
 
@@ -180,17 +244,19 @@ function renderBills(month) {
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
     .forEach((bill) => {
       const missing = Math.max(Number(bill.amount) - Number(bill.paid || 0), 0);
+      const isPaid = missing <= 0;
       const row = document.createElement('tr');
       row.innerHTML = `
         <td data-label="Conta">${escapeHtml(bill.name)}</td>
         <td data-label="Vencimento">${formatDate(bill.dueDate)}</td>
         <td data-label="Modalidade">${escapeHtml(bill.category)}</td>
-        <td data-label="Pessoa">${escapeHtml(bill.owner)}</td>
+        <td data-label="Pessoa">${escapeHtml(bill.owner || 'Sem pessoa')}</td>
         <td data-label="Valor">${money(bill.amount)}</td>
-        <td data-label="Abatido" class="${bill.paid >= bill.amount ? 'status-paid' : ''}">${money(bill.paid || 0)}</td>
+        <td data-label="Status"><span class="status-badge ${isPaid ? 'paid' : 'pending'}">${isPaid ? 'Quitado' : 'Pendente'}</span></td>
+        <td data-label="Quitado" class="${isPaid ? 'status-paid' : ''}">${money(bill.paid || 0)}</td>
         <td data-label="Falta" class="${missing > 0 ? 'status-open' : 'status-paid'}">${money(missing)}</td>
         <td data-label="Ação">
-          <button class="mini-button" data-action="pay" data-id="${bill.id}" type="button">Abater</button>
+          <button class="mini-button" data-action="pay" data-id="${bill.id}" type="button" ${isPaid ? 'disabled' : ''}>${isPaid ? 'Quitado' : 'Quitar'}</button>
           <button class="mini-button danger" data-action="remove-bill" data-id="${bill.id}" type="button">Excluir</button>
         </td>
       `;
@@ -245,7 +311,10 @@ function groupByCategory(month) {
 
 function groupByOwner(month) {
   const grouped = new Map();
-  month.bills.forEach((bill) => grouped.set(bill.owner, (grouped.get(bill.owner) || 0) + Number(bill.amount)));
+  month.bills.forEach((bill) => {
+    const owner = bill.owner || 'Sem pessoa';
+    grouped.set(owner, (grouped.get(owner) || 0) + Number(bill.amount));
+  });
   return Array.from(grouped, ([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
 }
 
@@ -330,7 +399,8 @@ function toCsv() {
   Object.entries(state.months).forEach(([monthKey, month]) => {
     month.bills.forEach((bill) => rows.push(['conta', monthKey, bill.name, bill.dueDate, bill.category, bill.owner, bill.amount, bill.paid || 0]));
     month.expenses.forEach((expense) => rows.push(['gasto_diario', monthKey, expense.description, expense.date, expense.category, '', expense.amount, '']));
-    rows.push(['receita', monthKey, 'Receita total do mês', '', '', '', month.income || 0, '']);
+    normalizeMonth(month);
+    month.incomes.forEach((income, index) => rows.push(['receita', monthKey, `Receita ${index + 1}`, '', '', '', income.amount || 0, '']));
   });
   return rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(';')).join('\n');
 }
@@ -343,23 +413,48 @@ elements.monthInput.addEventListener('change', () => {
 
 elements.incomeForm.addEventListener('submit', (event) => {
   event.preventDefault();
-  getMonth().income = Number(elements.incomeValue.value || 0);
+  const amount = Number(elements.incomeValue.value || 0);
+  if (amount <= 0) return;
+  getMonth().incomes.push({
+    id: uid('income'),
+    amount,
+    description: 'Receita lançada',
+  });
   render();
 });
 
 elements.billForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  getMonth().bills.push({
-    id: uid('bill'),
-    name: form.get('name'),
-    dueDate: form.get('dueDate'),
-    amount: Number(form.get('amount')),
-    category: form.get('category'),
-    owner: form.get('owner'),
-    paid: 0,
-  });
+  const name = String(form.get('name') || '').trim();
+  const dueDay = Number(form.get('dueDay'));
+  const totalAmount = Number(form.get('amount'));
+  const category = String(form.get('category') || '');
+  const owner = String(form.get('owner') || '').trim();
+  const isInstallment = form.get('isInstallment') === 'yes';
+  const installments = isInstallment ? Math.max(Number(form.get('installments')) || 1, 1) : 1;
+  const parcelAmount = Math.round((totalAmount / installments) * 100) / 100;
+
+  for (let index = 0; index < installments; index += 1) {
+    const monthKey = addMonths(activeMonth, index);
+    const month = getMonth(monthKey);
+    const isLast = index === installments - 1;
+    const amount = isLast ? Math.round((totalAmount - parcelAmount * (installments - 1)) * 100) / 100 : parcelAmount;
+
+    month.bills.push({
+      id: uid('bill'),
+      name: installments > 1 ? `${name} ${index + 1}/${installments}` : name,
+      dueDate: dateFromMonthDay(monthKey, dueDay),
+      amount,
+      category,
+      owner,
+      paid: 0,
+      installment: installments > 1 ? { current: index + 1, total: installments, originalName: name } : null,
+    });
+  }
+
   event.currentTarget.reset();
+  event.currentTarget.elements.installments.value = '1';
   render();
 });
 
@@ -383,6 +478,13 @@ document.addEventListener('click', (event) => {
 
   const { action, id } = button.dataset;
   const month = getMonth();
+
+  if (action === 'remove-income') {
+    month.incomes = month.incomes.filter((income) => income.id !== id);
+    month.income = incomeTotal(month);
+    render();
+    return;
+  }
 
   if (action === 'remove-bill') {
     month.bills = month.bills.filter((bill) => bill.id !== id);

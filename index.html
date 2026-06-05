@@ -53,7 +53,7 @@
             <strong id="billTotalMetric">R$ 0,00</strong>
           </article>
           <article class="metric-card">
-            <span>Abatido nas contas</span>
+            <span>Quitado nas contas</span>
             <strong id="paidMetric">R$ 0,00</strong>
           </article>
           <article class="metric-card">
@@ -74,15 +74,16 @@
           <article class="panel">
             <div class="panel-header">
               <h2>Receita do mês</h2>
-              <span>Valor total recebido</span>
+              <span>Lance vários recebimentos e o sistema soma</span>
             </div>
             <form id="incomeForm" class="form-grid compact">
-              <label>
-                Receita total
-                <input id="incomeValue" type="number" min="0" step="0.01" placeholder="0,00" />
+              <label class="required-field">
+                Valor recebido
+                <input id="incomeValue" required type="number" min="0.01" step="0.01" placeholder="0,00" />
               </label>
-              <button type="submit">Salvar receita</button>
+              <button type="submit">Adicionar receita</button>
             </form>
+            <div id="incomeList" class="income-list"></div>
           </article>
 
           <article class="panel">
@@ -91,19 +92,19 @@
               <span>Conta, vencimento, valor, modalidade e responsável</span>
             </div>
             <form id="billForm" class="form-grid">
-              <label>
+              <label class="required-field">
                 Conta
                 <input name="name" required type="text" placeholder="Ex.: Luz, aluguel, internet" />
               </label>
-              <label>
-                Vencimento
-                <input name="dueDate" required type="date" />
+              <label class="required-field">
+                Dia do vencimento
+                <input name="dueDay" required type="number" min="1" max="31" placeholder="Ex.: 10" />
               </label>
-              <label>
-                Valor
+              <label class="required-field">
+                Valor total
                 <input name="amount" required type="number" min="0.01" step="0.01" placeholder="0,00" />
               </label>
-              <label>
+              <label class="required-field">
                 Modalidade
                 <select name="category" required>
                   <option>Moradia</option>
@@ -120,7 +121,18 @@
               </label>
               <label>
                 Nome da pessoa
-                <input name="owner" required type="text" placeholder="Responsável pela conta" />
+                <input name="owner" type="text" placeholder="Responsável pela conta" />
+              </label>
+              <label>
+                Parcelado?
+                <select name="isInstallment">
+                  <option value="no">Não</option>
+                  <option value="yes">Sim</option>
+                </select>
+              </label>
+              <label>
+                Número de parcelas
+                <input name="installments" type="number" min="1" max="120" value="1" />
               </label>
               <button type="submit">Cadastrar conta</button>
             </form>
@@ -132,19 +144,19 @@
               <span>Despesas do dia a dia fora das contas fixas</span>
             </div>
             <form id="expenseForm" class="form-grid">
-              <label>
+              <label class="required-field">
                 Data
                 <input name="date" required type="date" />
               </label>
-              <label>
+              <label class="required-field">
                 Descrição
                 <input name="description" required type="text" placeholder="Ex.: Mercado, almoço, farmácia" />
               </label>
-              <label>
+              <label class="required-field">
                 Valor
                 <input name="amount" required type="number" min="0.01" step="0.01" placeholder="0,00" />
               </label>
-              <label>
+              <label class="required-field">
                 Modalidade
                 <select name="category" required>
                   <option>Alimentação</option>
@@ -164,7 +176,7 @@
           <article class="panel wide">
             <div class="panel-header">
               <h2>Contas cadastradas</h2>
-              <span>Use abater para registrar pagamentos parciais ou totais</span>
+              <span>Contas pendentes ficam amarelas e quitadas ficam verdes</span>
             </div>
             <div class="table-wrap">
               <table>
@@ -175,7 +187,8 @@
                     <th>Modalidade</th>
                     <th>Pessoa</th>
                     <th>Valor</th>
-                    <th>Abatido</th>
+                    <th>Status</th>
+                    <th>Quitado</th>
                     <th>Falta</th>
                     <th>Ação</th>
                   </tr>
@@ -222,15 +235,15 @@
 
     <dialog id="paymentDialog">
       <form method="dialog" id="paymentForm" class="dialog-card">
-        <h2>Abater conta</h2>
+        <h2>Quitar conta</h2>
         <p id="paymentInfo"></p>
         <label>
-          Valor abatido
+          Valor quitado
           <input id="paymentAmount" type="number" min="0.01" step="0.01" required />
         </label>
         <div class="dialog-actions">
           <button value="cancel" class="secondary" type="button" id="cancelPaymentBtn">Cancelar</button>
-          <button value="default" type="submit">Registrar abatimento</button>
+          <button value="default" type="submit">Registrar quitação</button>
         </div>
       </form>
     </dialog>
