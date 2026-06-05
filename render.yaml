@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: contas-casa
+    runtime: static
+    buildCommand: echo "Site estático sem etapa de build"
+    staticPublishPath: .
+    branch: main
+    autoDeploy: true
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
