@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contas da Casa</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">R$</span>
+          <div>
+            <strong>Contas da Casa</strong>
+            <small>Controle mensal familiar</small>
+          </div>
+        </div>
+
+        <label class="month-picker">
+          Mês de controle
+          <input id="monthInput" type="month" />
+        </label>
+
+        <nav class="month-list" id="monthList" aria-label="Meses cadastrados"></nav>
+
+        <button class="secondary full" id="exportJsonBtn" type="button">Exportar dados</button>
+        <label class="secondary full import-label">
+          Importar dados
+          <input id="importJsonInput" type="file" accept="application/json" />
+        </label>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <span class="eyebrow">Resumo do mês</span>
+            <h1 id="monthTitle">Contas da casa</h1>
+          </div>
+          <div class="top-actions">
+            <button id="exportCsvBtn" type="button">Exportar CSV</button>
+            <button id="clearMonthBtn" class="danger" type="button">Limpar mês</button>
+          </div>
+        </header>
+
+        <section class="summary-grid" aria-label="Resumo financeiro">
+          <article class="metric-card">
+            <span>Receita recebida</span>
+            <strong id="incomeMetric">R$ 0,00</strong>
+          </article>
+          <article class="metric-card">
+            <span>Total das contas</span>
+            <strong id="billTotalMetric">R$ 0,00</strong>
+          </article>
+          <article class="metric-card">
+            <span>Abatido nas contas</span>
+            <strong id="paidMetric">R$ 0,00</strong>
+          </article>
+          <article class="metric-card">
+            <span>Sobra de receita</span>
+            <strong id="leftoverMetric">R$ 0,00</strong>
+          </article>
+          <article class="metric-card">
+            <span>Gastos diários</span>
+            <strong id="dailyMetric">R$ 0,00</strong>
+          </article>
+          <article class="metric-card">
+            <span>Diferença do mês</span>
+            <strong id="differenceMetric">R$ 0,00</strong>
+          </article>
+        </section>
+
+        <section class="workspace">
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Receita do mês</h2>
+              <span>Valor total recebido</span>
+            </div>
+            <form id="incomeForm" class="form-grid compact">
+              <label>
+                Receita total
+                <input id="incomeValue" type="number" min="0" step="0.01" placeholder="0,00" />
+              </label>
+              <button type="submit">Salvar receita</button>
+            </form>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Nova conta</h2>
+              <span>Conta, vencimento, valor, modalidade e responsável</span>
+            </div>
+            <form id="billForm" class="form-grid">
+              <label>
+                Conta
+                <input name="name" required type="text" placeholder="Ex.: Luz, aluguel, internet" />
+              </label>
+              <label>
+                Vencimento
+                <input name="dueDate" required type="date" />
+              </label>
+              <label>
+                Valor
+                <input name="amount" required type="number" min="0.01" step="0.01" placeholder="0,00" />
+              </label>
+              <label>
+                Modalidade
+                <select name="category" required>
+                  <option>Moradia</option>
+                  <option>Energia</option>
+                  <option>Água</option>
+                  <option>Internet</option>
+                  <option>Alimentação</option>
+                  <option>Transporte</option>
+                  <option>Saúde</option>
+                  <option>Educação</option>
+                  <option>Cartão</option>
+                  <option>Outros</option>
+                </select>
+              </label>
+              <label>
+                Nome da pessoa
+                <input name="owner" required type="text" placeholder="Responsável pela conta" />
+              </label>
+              <button type="submit">Cadastrar conta</button>
+            </form>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Gasto diário</h2>
+              <span>Despesas do dia a dia fora das contas fixas</span>
+            </div>
+            <form id="expenseForm" class="form-grid">
+              <label>
+                Data
+                <input name="date" required type="date" />
+              </label>
+              <label>
+                Descrição
+                <input name="description" required type="text" placeholder="Ex.: Mercado, almoço, farmácia" />
+              </label>
+              <label>
+                Valor
+                <input name="amount" required type="number" min="0.01" step="0.01" placeholder="0,00" />
+              </label>
+              <label>
+                Modalidade
+                <select name="category" required>
+                  <option>Alimentação</option>
+                  <option>Transporte</option>
+                  <option>Casa</option>
+                  <option>Lazer</option>
+                  <option>Saúde</option>
+                  <option>Outros</option>
+                </select>
+              </label>
+              <button type="submit">Adicionar gasto</button>
+            </form>
+          </article>
+        </section>
+
+        <section class="data-grid">
+          <article class="panel wide">
+            <div class="panel-header">
+              <h2>Contas cadastradas</h2>
+              <span>Use abater para registrar pagamentos parciais ou totais</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Conta</th>
+                    <th>Vencimento</th>
+                    <th>Modalidade</th>
+                    <th>Pessoa</th>
+                    <th>Valor</th>
+                    <th>Abatido</th>
+                    <th>Falta</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="billTable"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Gastos diários</h2>
+              <span>Registro do mês selecionado</span>
+            </div>
+            <div id="expenseList" class="expense-list"></div>
+          </article>
+        </section>
+
+        <section class="charts">
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Diferença mês a mês</h2>
+              <span>Receita menos contas e gastos</span>
+            </div>
+            <canvas id="monthlyChart" height="230"></canvas>
+          </article>
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Por modalidade</h2>
+              <span>Contas e gastos agrupados</span>
+            </div>
+            <canvas id="categoryChart" height="230"></canvas>
+          </article>
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Por pessoa</h2>
+              <span>Contas por responsável</span>
+            </div>
+            <canvas id="ownerChart" height="230"></canvas>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="paymentDialog">
+      <form method="dialog" id="paymentForm" class="dialog-card">
+        <h2>Abater conta</h2>
+        <p id="paymentInfo"></p>
+        <label>
+          Valor abatido
+          <input id="paymentAmount" type="number" min="0.01" step="0.01" required />
+        </label>
+        <div class="dialog-actions">
+          <button value="cancel" class="secondary" type="button" id="cancelPaymentBtn">Cancelar</button>
+          <button value="default" type="submit">Registrar abatimento</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="app.js"></script>
+  </body>
+</html>
